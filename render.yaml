@@ -9,13 +9,21 @@ services:
     dockerfilePath: ./Dockerfile
     healthCheckPath: /actuator/health
     envVars:
-      - key: SPRING_DATASOURCE_URL
+      - key: PGHOST
         sync: false
-      - key: SPRING_DATASOURCE_USERNAME
+      - key: PGPORT
         sync: false
-      - key: SPRING_DATASOURCE_PASSWORD
+      - key: PGDATABASE
+        sync: false
+      - key: PGUSER
+        sync: false
+      - key: PGPASSWORD
         sync: false
       - key: FRONTEND_ORIGIN
+        sync: false
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
         sync: false
 
   - type: web
