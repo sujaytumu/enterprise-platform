@@ -19,6 +19,10 @@ spring:
 app:
   frontend-origin: ${FRONTEND_ORIGIN:*}
 
+razorpay:
+  key-id: ${RAZORPAY_KEY_ID:}
+  key-secret: ${RAZORPAY_KEY_SECRET:}
+
 management:
   endpoints:
     web:
