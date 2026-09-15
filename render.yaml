@@ -1,47 +1,31 @@
-# Render Blueprint — deploys api-gateway + core-processing-engine as live,
-# internet-reachable URLs on Render's free tier, using images published by
-# .github/workflows/cd-publish-images.yml to GHCR under YOUR username.
-#
-# HOW TO USE:
-# 1. Replace this file at the root of your repo, commit, push to main.
-# 2. Make sure both GHCR packages are set to PUBLIC visibility (see notes below).
-# 3. Go to render.com -> New -> Blueprint -> connect this repo.
-#    Render reads this file automatically and proposes both services.
-# 4. Click "Apply".
-#
-# LIMITATIONS (free tier):
-# - Both services spin down after 15 min idle; whichever gets hit first
-#   cold-starts (~30-60s) before it can even call the other one.
-# - Kafka, fraud-risk-engine, tokenization-vault, etc. are NOT included here —
-#   this proves gateway -> core-engine -> Postgres, not the full 7-service flow.
-
 services:
   - type: web
-    name: enterprise-platform-core-engine
-    runtime: image
-    image:
-      url: ghcr.io/thetorchbearer/core-processing-engine:latest
+    name: enterprise-platform-backend
+    runtime: docker
+    repo: https://github.com/sujaytumu/enterprise-platform
+    branch: deploy-free-stack
     plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
     envVars:
-      - key: SPRING_PROFILES_ACTIVE
-        value: nosecurity
       - key: SPRING_DATASOURCE_URL
-        sync: false   # paste the JDBC URL in the Render dashboard, not here — this repo is public
+        sync: false
       - key: SPRING_DATASOURCE_USERNAME
         sync: false
       - key: SPRING_DATASOURCE_PASSWORD
         sync: false
-    healthCheckPath: /actuator/health
+      - key: FRONTEND_ORIGIN
+        sync: false
 
   - type: web
-    name: enterprise-platform-gateway
-    runtime: image
-    image:
-      url: ghcr.io/thetorchbearer/api-gateway:latest
-    plan: free
+    name: enterprise-platform-frontend
+    runtime: static
+    repo: https://github.com/sujaytumu/enterprise-platform
+    branch: deploy-free-stack
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    publishPath: dist
     envVars:
-      - key: SPRING_PROFILES_ACTIVE
-        value: nosecurity
-      - key: CORE_ENGINE_URL
-        value: https://enterprise-platform-core-engine.onrender.com
-    healthCheckPath: /actuator/health
+      - key: VITE_API_URL
+        sync: false
