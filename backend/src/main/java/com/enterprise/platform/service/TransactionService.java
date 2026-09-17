@@ -8,6 +8,7 @@ import com.enterprise.platform.repository.TransactionRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.NoSuchElementException;
 
 @Service
@@ -18,21 +19,19 @@ public class TransactionService {
     private final TransactionRepository transactionRepository;
 
     public TransactionService(AccountRepository accountRepository,
-                               CardRepository cardRepository,
-                               TransactionRepository transactionRepository) {
+                              CardRepository cardRepository,
+                              TransactionRepository transactionRepository) {
         this.accountRepository = accountRepository;
         this.cardRepository = cardRepository;
         this.transactionRepository = transactionRepository;
     }
 
-    /**
-     * Simplified authorization: checks account status and balance/velocity.
-     * This mirrors the shape of a real authorization decision (approve/decline
-     * with a reason) without the fraud-engine, ISO 8583 switch, or clearing
-     * steps of the original multi-service design.
-     */
     @Transactional
     public Transaction authorize(AuthorizeRequest req) {
+        if (req.amount == null || req.amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Amount must be greater than zero");
+        }
+
         Account account = accountRepository.findById(req.accountId)
                 .orElseThrow(() -> new NoSuchElementException("Account not found"));
 
@@ -47,7 +46,7 @@ public class TransactionService {
         tx.setCard(card);
         tx.setAmount(req.amount);
         tx.setCurrency(account.getCurrency());
-        tx.setMerchant(req.merchant);
+        tx.setMerchant(req.merchant == null || req.merchant.isBlank() ? "Account transaction" : req.merchant.trim());
 
         String declineReason = null;
         if (account.getStatus() != Account.AccountStatus.ACTIVE) {
