@@ -9,10 +9,9 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class WebConfig implements WebMvcConfigurer {
 
     // Set FRONTEND_ORIGIN env var to your deployed frontend URL (e.g.
-    // https://enterprise-platform-frontend.onrender.com). Defaults to "*" for
-    // local development only — tighten this before treating the deployment as
-    // anything beyond a demo.
-    @Value("${app.frontend-origin:*}")
+    // https://enterprise-frontend.onrender.com). Defaults to the local Vite
+    // dev server.
+    @Value("${app.frontend-origin:http://localhost:5173}")
     private String frontendOrigin;
 
     @Override

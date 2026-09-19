@@ -9,6 +9,7 @@ import com.enterprise.platform.repository.CardRepository;
 import com.enterprise.platform.repository.TransactionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -104,7 +105,9 @@ class TransactionServiceTest {
         UUID accountId = UUID.randomUUID();
         UUID cardId = UUID.randomUUID();
         Account account = activeAccount(new BigDecimal("500.00"));
+        ReflectionTestUtils.setField(account, "id", accountId);
         Card card = new Card();
+        card.setAccount(account);
         card.setStatus(Card.CardStatus.BLOCKED);
 
         when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
@@ -119,5 +122,32 @@ class TransactionServiceTest {
 
         assertEquals(Transaction.TransactionStatus.DECLINED, tx.getStatus());
         assertTrue(tx.getDeclineReason().contains("Card"));
+    }
+
+    @Test
+    void declinesWhenCardBelongsToAnotherAccount() {
+        UUID accountId = UUID.randomUUID();
+        UUID cardId = UUID.randomUUID();
+        Account account = activeAccount(new BigDecimal("500.00"));
+        ReflectionTestUtils.setField(account, "id", accountId);
+        Account otherAccount = activeAccount(new BigDecimal("500.00"));
+        ReflectionTestUtils.setField(otherAccount, "id", UUID.randomUUID());
+        Card card = new Card();
+        card.setAccount(otherAccount);
+        card.setStatus(Card.CardStatus.ACTIVE);
+
+        when(accountRepository.findById(accountId)).thenReturn(Optional.of(account));
+        when(cardRepository.findById(cardId)).thenReturn(Optional.of(card));
+
+        AuthorizeRequest req = new AuthorizeRequest();
+        req.accountId = accountId;
+        req.cardId = cardId;
+        req.amount = new BigDecimal("5.00");
+
+        Transaction tx = service.authorize(req);
+
+        assertEquals(Transaction.TransactionStatus.DECLINED, tx.getStatus());
+        assertEquals("Card does not belong to this account", tx.getDeclineReason());
+        assertEquals(new BigDecimal("500.00"), account.getBalance());
     }
 }

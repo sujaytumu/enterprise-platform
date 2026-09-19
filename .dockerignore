@@ -1,0 +1,7 @@
+.git
+.github
+.env
+.env.*
+backend/target
+frontend
+README.md

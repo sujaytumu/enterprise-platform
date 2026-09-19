@@ -13,6 +13,14 @@ RUN mvn -q clean package -DskipTests -B
 
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
+RUN addgroup -S app && adduser -S app -G app
 COPY --from=build /app/target/app.jar app.jar
+USER app
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+
+# Used by plain Docker / compose. (Render ignores this and uses
+# healthCheckPath from render.yaml instead.)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD wget -qO- "http://localhost:${PORT:-8080}/actuator/health" || exit 1
+
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "app.jar"]

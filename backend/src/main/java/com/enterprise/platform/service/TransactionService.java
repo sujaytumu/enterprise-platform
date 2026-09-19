@@ -52,6 +52,8 @@ public class TransactionService {
         String declineReason = null;
         if (account.getStatus() != Account.AccountStatus.ACTIVE) {
             declineReason = "Account is not active (" + account.getStatus() + ")";
+        } else if (card != null && !belongsTo(card, account)) {
+            declineReason = "Card does not belong to this account";
         } else if (card != null && card.getStatus() != Card.CardStatus.ACTIVE) {
             declineReason = "Card is not active (" + card.getStatus() + ")";
         } else if (account.getBalance().compareTo(req.amount) < 0) {
@@ -68,5 +70,10 @@ public class TransactionService {
         }
 
         return transactionRepository.save(tx);
+    }
+
+    private static boolean belongsTo(Card card, Account account) {
+        Account owner = card.getAccount();
+        return owner != null && owner.getId() != null && owner.getId().equals(account.getId());
     }
 }

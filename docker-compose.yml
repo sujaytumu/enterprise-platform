@@ -1,18 +1,17 @@
-version: "3.8"
-
+# Requires a .env file — copy .env.example to .env and set POSTGRES_PASSWORD.
 services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: enterprise
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ${POSTGRES_DB:-enterprise}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-enterprise}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -26,9 +25,9 @@ services:
     environment:
       PGHOST: db
       PGPORT: 5432
-      PGDATABASE: enterprise
-      PGUSER: postgres
-      PGPASSWORD: postgres
+      PGDATABASE: ${POSTGRES_DB:-enterprise}
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env (see .env.example)}
       FRONTEND_ORIGIN: "http://localhost:5173"
     depends_on:
       db:
@@ -42,7 +41,8 @@ services:
     environment:
       VITE_API_URL: "http://localhost:8080"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
 volumes:
   pgdata:

@@ -1,47 +1,62 @@
-# Render Blueprint — deploys api-gateway + core-processing-engine as live,
-# internet-reachable URLs on Render's free tier, using images published by
-# .github/workflows/cd-publish-images.yml to GHCR under YOUR username.
+# Render Blueprint for the consolidated platform:
+#   enterprise-db       Postgres (free tier)
+#   enterprise-backend  Spring Boot API, built from the root Dockerfile
+#   enterprise-frontend React/Vite static site
 #
-# HOW TO USE:
-# 1. Replace this file at the root of your repo, commit, push to main.
-# 2. Make sure both GHCR packages are set to PUBLIC visibility (see notes below).
-# 3. Go to render.com -> New -> Blueprint -> connect this repo.
-#    Render reads this file automatically and proposes both services.
-# 4. Click "Apply".
+# Database credentials are wired straight from the managed database into the
+# backend's environment — no passwords live in this file or in the repo.
 #
-# LIMITATIONS (free tier):
-# - Both services spin down after 15 min idle; whichever gets hit first
-#   cold-starts (~30-60s) before it can even call the other one.
-# - Kafka, fraud-risk-engine, tokenization-vault, etc. are NOT included here —
-#   this proves gateway -> core-engine -> Postgres, not the full 7-service flow.
+# HOW TO USE: Render dashboard -> New -> Blueprint -> connect this repo -> Apply.
+# If Render assigns different hostnames than the ones below, update
+# FRONTEND_ORIGIN (backend) and VITE_API_URL (frontend) in the dashboard.
+
+databases:
+  - name: enterprise-db
+    plan: free
+    databaseName: enterprise
+    user: enterprise
 
 services:
   - type: web
-    name: enterprise-platform-core-engine
-    runtime: image
-    image:
-      url: ghcr.io/thetorchbearer/core-processing-engine:latest
+    name: enterprise-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
     plan: free
-    envVars:
-      - key: SPRING_PROFILES_ACTIVE
-        value: nosecurity
-      - key: SPRING_DATASOURCE_URL
-        sync: false   # paste the JDBC URL in the Render dashboard, not here — this repo is public
-      - key: SPRING_DATASOURCE_USERNAME
-        sync: false
-      - key: SPRING_DATASOURCE_PASSWORD
-        sync: false
     healthCheckPath: /actuator/health
+    envVars:
+      - key: PGHOST
+        fromDatabase:
+          name: enterprise-db
+          property: host
+      - key: PGPORT
+        fromDatabase:
+          name: enterprise-db
+          property: port
+      - key: PGDATABASE
+        fromDatabase:
+          name: enterprise-db
+          property: database
+      - key: PGUSER
+        fromDatabase:
+          name: enterprise-db
+          property: user
+      - key: PGPASSWORD
+        fromDatabase:
+          name: enterprise-db
+          property: password
+      - key: FRONTEND_ORIGIN
+        value: https://enterprise-frontend.onrender.com
 
   - type: web
-    name: enterprise-platform-gateway
-    runtime: image
-    image:
-      url: ghcr.io/thetorchbearer/api-gateway:latest
-    plan: free
+    name: enterprise-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
     envVars:
-      - key: SPRING_PROFILES_ACTIVE
-        value: nosecurity
-      - key: CORE_ENGINE_URL
-        value: https://enterprise-platform-core-engine.onrender.com
-    healthCheckPath: /actuator/health
+      - key: VITE_API_URL
+        value: https://enterprise-backend.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

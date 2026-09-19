@@ -7,7 +7,8 @@ spring:
   datasource:
     url: jdbc:postgresql://${PGHOST:localhost}:${PGPORT:5432}/${PGDATABASE:enterprise}
     username: ${PGUSER:postgres}
-    password: ${PGPASSWORD:postgres}
+    # No default: the password must come from the environment (PGPASSWORD).
+    password: ${PGPASSWORD}
   jpa:
     hibernate:
       ddl-auto: update
@@ -17,7 +18,7 @@ spring:
         format_sql: false
 
 app:
-  frontend-origin: ${FRONTEND_ORIGIN:*}
+  frontend-origin: ${FRONTEND_ORIGIN:http://localhost:5173}
 
 management:
   endpoints:
@@ -26,4 +27,7 @@ management:
         include: health,info
   endpoint:
     health:
-      show-details: always
+      # Public endpoint: report status only, don't leak DB/disk details.
+      show-details: never
+      probes:
+        enabled: true
