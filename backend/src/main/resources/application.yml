@@ -5,7 +5,7 @@ spring:
   application:
     name: enterprise-platform-backend
   datasource:
-    url: jdbc:postgresql://${PGHOST:localhost}:${PGPORT:5432}/${PGDATABASE:enterprise}
+    url: jdbc:postgresql://${PGHOST:localhost}:${PGPORT:5432}/${PGDATABASE:enterprise}?sslmode=require
     username: ${PGUSER:postgres}
     password: ${PGPASSWORD:postgres}
   jpa:
