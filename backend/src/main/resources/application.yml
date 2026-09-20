@@ -18,6 +18,8 @@ spring:
 
 app:
   frontend-origin: ${FRONTEND_ORIGIN:*}
+  jwt-secret: ${JWT_SECRET:}
+  jwt-expiration-hours: ${JWT_EXPIRATION_HOURS:24}
 
 razorpay:
   key-id: ${RAZORPAY_KEY_ID:}

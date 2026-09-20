@@ -5,9 +5,13 @@ import com.enterprise.platform.model.Account;
 import com.enterprise.platform.model.Card;
 import com.enterprise.platform.repository.AccountRepository;
 import com.enterprise.platform.repository.CardRepository;
+import com.enterprise.platform.security.AuthUtil;
+import com.enterprise.platform.security.CurrentUser;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.security.SecureRandom;
 import java.time.Year;
@@ -30,7 +34,15 @@ public class CardController {
 
     @GetMapping
     public List<Card> list(@RequestParam(required = false) UUID accountId) {
-        return accountId != null ? cardRepository.findByAccountId(accountId) : cardRepository.findAll();
+        CurrentUser user = AuthUtil.current();
+        if (accountId != null) {
+            AccountController.requireOwnerOrAdmin(requireAccount(accountId));
+            return cardRepository.findByAccountId(accountId);
+        }
+        if (user.isAdmin()) return cardRepository.findAll();
+        return accountRepository.findByOwnerId(user.userId()).stream()
+                .flatMap(a -> cardRepository.findByAccountId(a.getId()).stream())
+                .toList();
     }
 
     // Demo-only issuance: generates a synthetic token and last4. This is
@@ -38,8 +50,8 @@ public class CardController {
     // implementation — see README.
     @PostMapping
     public ResponseEntity<Card> issue(@Valid @RequestBody IssueCardRequest req) {
-        Account account = accountRepository.findById(req.accountId)
-                .orElseThrow(() -> new NoSuchElementException("Account not found"));
+        Account account = requireAccount(req.accountId);
+        AccountController.requireOwnerOrAdmin(account);
 
         Card card = new Card();
         card.setAccount(account);
@@ -55,7 +67,13 @@ public class CardController {
     public Card block(@PathVariable UUID id) {
         Card card = cardRepository.findById(id)
                 .orElseThrow(() -> new NoSuchElementException("Card not found"));
+        AccountController.requireOwnerOrAdmin(card.getAccount());
         card.setStatus(Card.CardStatus.BLOCKED);
         return cardRepository.save(card);
+    }
+
+    private Account requireAccount(UUID id) {
+        if (id == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "accountId is required");
+        return accountRepository.findById(id).orElseThrow(() -> new NoSuchElementException("Account not found"));
     }
 }

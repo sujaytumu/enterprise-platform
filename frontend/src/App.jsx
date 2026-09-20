@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { api } from './api.js';
+import { api, getToken, setToken, clearToken } from './api.js';
 
 function loadRazorpay() {
   return new Promise((resolve, reject) => {
@@ -22,6 +22,14 @@ const nav = [
 ];
 
 export default function App() {
+  const [session, setSession] = useState(() => {
+    const email = localStorage.getItem('ep_email');
+    return getToken() && email ? { email } : null;
+  });
+  const [authMode, setAuthMode] = useState('login');
+  const [authFields, setAuthFields] = useState({ email: '', password: '' });
+  const [authError, setAuthError] = useState('');
+  const [authBusy, setAuthBusy] = useState(false);
   const [active, setActive] = useState('overview');
   const [accounts, setAccounts] = useState([]);
   const [cards, setCards] = useState([]);
@@ -53,8 +61,29 @@ export default function App() {
     } catch (e) { setError(e.message); }
   }
 
-  useEffect(() => { refreshAll(); }, []);
+  useEffect(() => { if (session) refreshAll(); }, [session]);
   useEffect(() => { refreshAccountDetail(selectedAccountId); }, [selectedAccountId]);
+  useEffect(() => {
+    function onUnauthorized() { setSession(null); localStorage.removeItem('ep_email'); }
+    window.addEventListener('ep-unauthorized', onUnauthorized);
+    return () => window.removeEventListener('ep-unauthorized', onUnauthorized);
+  }, []);
+
+  async function handleAuthSubmit(e) {
+    e.preventDefault(); setAuthBusy(true); setAuthError('');
+    try {
+      const result = authMode === 'login' ? await api.login(authFields) : await api.signup(authFields);
+      setToken(result.token);
+      localStorage.setItem('ep_email', result.email);
+      setSession({ email: result.email, role: result.role });
+      setAuthFields({ email: '', password: '' });
+    } catch (e) { setAuthError(e.message); } finally { setAuthBusy(false); }
+  }
+
+  function handleLogout() {
+    clearToken(); localStorage.removeItem('ep_email'); setSession(null);
+    setAccounts([]); setCards([]); setTransactions([]); setSelectedAccountId('');
+  }
 
   async function handleCreateAccount(e) {
     e.preventDefault(); setBusy(true); setError('');
@@ -128,13 +157,18 @@ export default function App() {
   const approved = transactions.filter((t) => t.status === 'APPROVED').length;
   const declined = transactions.filter((t) => t.status === 'DECLINED').length;
 
+  if (!session) {
+    return <AuthScreen mode={authMode} setMode={setAuthMode} fields={authFields} setFields={setAuthFields}
+      onSubmit={handleAuthSubmit} error={authError} busy={authBusy} />;
+  }
+
   return (
     <div className="shell">
       <aside className="sidebar">
         <div className="brand"><div className="brand-mark">EP</div><div><strong>Enterprise</strong><span>Banking Platform</span></div></div>
         <div className="workspace"><span className="dot" /> Demo environment</div>
         <nav>{nav.map(([id, label, icon]) => <button key={id} className={active === id ? 'nav-item active' : 'nav-item'} onClick={() => setActive(id)}><span>{icon}</span>{label}</button>)}</nav>
-        <div className="sidebar-bottom"><div className="security-card"><strong>Environment</strong><span>Razorpay Test Mode</span></div><div className="profile"><div className="avatar">SB</div><div><strong>Platform Admin</strong><span>Enterprise demo</span></div></div></div>
+        <div className="sidebar-bottom"><div className="security-card"><strong>Environment</strong><span>Razorpay Test Mode</span></div><div className="profile"><div className="avatar">{session.email.slice(0, 2).toUpperCase()}</div><div><strong>{session.email}</strong><span>{session.role === 'ADMIN' ? 'Administrator' : 'Account holder'}</span></div><button className="ghost logout-btn" onClick={handleLogout}>Log out</button></div></div>
       </aside>
 
       <main className="main">
@@ -183,6 +217,25 @@ function Transactions({ transactions, search, setSearch, onAuthorize, form, setF
 
 function Payments({ amount, setAmount, status, onPay, selectedAccount }) {
   return <div className="content-stack"><section className="panel payment-panel"><div className="payment-art">₨</div><div><span className="eyebrow">Gateway integration</span><h2>Razorpay Test Mode</h2><p>Sandbox checkout is wired to the Spring Boot backend. On success, the amount is credited straight to the selected account's balance. No real money is charged.</p></div><div className="payment-form">{selectedAccount ? <div className="credit-target">Crediting <strong>{selectedAccount.holderName}</strong> · {selectedAccount.accountNumber}</div> : <div className="credit-target warn">Select an account first (in Accounts)</div>}<label>Amount in INR<input type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} /></label><button className="primary" onClick={onPay} disabled={!selectedAccount}>Open secure checkout ↗</button></div>{status && <div className="success-box">{status}</div>}</section></div>;
+}
+
+function AuthScreen({ mode, setMode, fields, setFields, onSubmit, error, busy }) {
+  return <div className="auth-shell">
+    <div className="auth-card">
+      <div className="brand"><div className="brand-mark">EP</div><div><strong>Enterprise</strong><span>Banking Platform</span></div></div>
+      <h2>{mode === 'login' ? 'Log in' : 'Create your account'}</h2>
+      <p className="auth-sub">{mode === 'login' ? 'Access your accounts, cards and transaction history.' : 'Sign up to start opening demo accounts.'}</p>
+      <form onSubmit={onSubmit} className="form-grid one-col">
+        <label>Email<input type="email" required value={fields.email} onChange={(e) => setFields({ ...fields, email: e.target.value })} placeholder="you@example.com" /></label>
+        <label>Password<input type="password" required minLength={8} value={fields.password} onChange={(e) => setFields({ ...fields, password: e.target.value })} placeholder="At least 8 characters" /></label>
+        {error && <div className="error"><strong>{mode === 'login' ? 'Login failed' : 'Signup failed'}</strong><span>{error}</span></div>}
+        <button className="primary" disabled={busy}>{busy ? 'Please wait…' : mode === 'login' ? 'Log in' : 'Sign up'}</button>
+      </form>
+      <button className="ghost auth-switch" onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}>
+        {mode === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Log in'}
+      </button>
+    </div>
+  </div>;
 }
 
 function Empty({ title, text }) { return <div className="empty"><div className="empty-icon">○</div><h4>{title}</h4><p>{text}</p></div>; }

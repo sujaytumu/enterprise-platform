@@ -16,6 +16,8 @@ public class Account {
     @Column(nullable = false, unique = true)
     private String accountNumber;
 
+    private UUID ownerId;
+
     @Column(nullable = false)
     private String holderName;
 
@@ -35,6 +37,8 @@ public class Account {
     public enum AccountStatus { ACTIVE, FROZEN, CLOSED }
 
     public UUID getId() { return id; }
+    public UUID getOwnerId() { return ownerId; }
+    public void setOwnerId(UUID ownerId) { this.ownerId = ownerId; }
     public String getAccountNumber() { return accountNumber; }
     public void setAccountNumber(String accountNumber) { this.accountNumber = accountNumber; }
     public String getHolderName() { return holderName; }
