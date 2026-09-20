@@ -1,6 +1,7 @@
 package com.enterprise.platform.controller;
 
 import com.enterprise.platform.dto.AuthorizeRequest;
+import com.enterprise.platform.dto.TransferRequest;
 import com.enterprise.platform.model.Transaction;
 import com.enterprise.platform.repository.TransactionRepository;
 import com.enterprise.platform.service.TransactionService;
@@ -34,5 +35,10 @@ public class TransactionController {
     @PostMapping("/authorize")
     public ResponseEntity<Transaction> authorize(@Valid @RequestBody AuthorizeRequest req) {
         return ResponseEntity.ok(transactionService.authorize(req));
+    }
+
+    @PostMapping("/transfer")
+    public ResponseEntity<Transaction> transfer(@Valid @RequestBody TransferRequest req) {
+        return ResponseEntity.ok(transactionService.transfer(req.fromAccountId, req.toAccountId, req.amount, req.note));
     }
 }

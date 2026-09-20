@@ -20,7 +20,8 @@ export const api = {
   blockCard: (id) => request(`/api/cards/${id}/block`, { method: 'POST' }),
   listTransactions: (accountId) => request(`/api/transactions${accountId ? `?accountId=${accountId}` : ''}`),
   authorize: (data) => request('/api/transactions/authorize', { method: 'POST', body: JSON.stringify(data) }),
+  transfer: (data) => request('/api/transactions/transfer', { method: 'POST', body: JSON.stringify(data) }),
   listLedgerEntries: (accountId) => request(`/api/ledger/entries${accountId ? `?accountId=${accountId}` : ''}`),
-  createPaymentOrder: (amount) => request('/api/payments/order', { method: 'POST', body: JSON.stringify({ amount }) }),
+  createPaymentOrder: (amount, accountId) => request('/api/payments/order', { method: 'POST', body: JSON.stringify({ amount, accountId }) }),
   verifyPayment: (data) => request('/api/payments/verify', { method: 'POST', body: JSON.stringify(data) }),
 };

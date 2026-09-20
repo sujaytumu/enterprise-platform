@@ -40,7 +40,7 @@ public class RazorpayService {
         return keyId;
     }
 
-    public JsonNode createOrder(BigDecimal amount) throws Exception {
+    public JsonNode createOrder(BigDecimal amount, UUID accountId) throws Exception {
         if (keyId.isBlank() || keySecret.isBlank()) {
             throw new IllegalStateException("Razorpay test credentials are not configured");
         }
@@ -68,6 +68,7 @@ public class RazorpayService {
         JsonNode order = objectMapper.readTree(response.body());
         Payment payment = new Payment();
         payment.setRazorpayOrderId(order.get("id").asText());
+        payment.setAccountId(accountId);
         payment.setAmount(amount);
         payment.setCurrency("INR");
         payment.setStatus("CREATED");
@@ -75,7 +76,8 @@ public class RazorpayService {
         return order;
     }
 
-    public boolean verify(String orderId, String paymentId, String signature) throws Exception {
+    /** Returns the verified Payment, or null if the signature does not match. */
+    public Payment verify(String orderId, String paymentId, String signature) throws Exception {
         Payment payment = paymentRepository.findByRazorpayOrderId(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown Razorpay order"));
 
@@ -86,12 +88,12 @@ public class RazorpayService {
 
         boolean valid = java.security.MessageDigest.isEqual(
                 expected.getBytes(StandardCharsets.UTF_8), signature.getBytes(StandardCharsets.UTF_8));
-        if (valid) {
-            payment.setRazorpayPaymentId(paymentId);
-            payment.setSignatureVerified(true);
-            payment.setStatus("VERIFIED");
-            paymentRepository.save(payment);
+        if (!valid) {
+            return null;
         }
-        return valid;
+        payment.setRazorpayPaymentId(paymentId);
+        payment.setSignatureVerified(true);
+        payment.setStatus("VERIFIED");
+        return paymentRepository.save(payment);
     }
 }

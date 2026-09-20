@@ -34,6 +34,10 @@ public class Transaction {
     @Column(nullable = false)
     private TransactionStatus status;
 
+    @Enumerated(EnumType.STRING)
+    @Column
+    private TransactionType type = TransactionType.DEBIT;
+
     @Column
     private String declineReason;
 
@@ -41,6 +45,10 @@ public class Transaction {
     private Instant createdAt = Instant.now();
 
     public enum TransactionStatus { APPROVED, DECLINED }
+    public enum TransactionType { DEBIT, CREDIT }
+
+    public TransactionType getType() { return type; }
+    public void setType(TransactionType type) { this.type = type; }
 
     public UUID getId() { return id; }
     public Account getAccount() { return account; }

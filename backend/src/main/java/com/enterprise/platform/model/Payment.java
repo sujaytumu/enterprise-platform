@@ -15,6 +15,8 @@ public class Payment {
     @Column(nullable = false, unique = true)
     private String razorpayOrderId;
 
+    private java.util.UUID accountId;
+
     private String razorpayPaymentId;
     private BigDecimal amount;
 
@@ -30,6 +32,8 @@ public class Payment {
     private Instant createdAt = Instant.now();
 
     public UUID getId() { return id; }
+    public java.util.UUID getAccountId() { return accountId; }
+    public void setAccountId(java.util.UUID accountId) { this.accountId = accountId; }
     public String getRazorpayOrderId() { return razorpayOrderId; }
     public void setRazorpayOrderId(String value) { this.razorpayOrderId = value; }
     public String getRazorpayPaymentId() { return razorpayPaymentId; }

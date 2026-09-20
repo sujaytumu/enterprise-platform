@@ -87,7 +87,7 @@ export default function App() {
     try {
       if (!transferForm.destinationId) throw new Error('Select a destination account');
       if (transferForm.destinationId === selectedAccountId) throw new Error('Source and destination accounts must differ');
-      await api.authorize({ accountId: selectedAccountId, cardId: null, amount: Number(transferForm.amount), merchant: `Transfer to ${transferForm.destinationId.slice(0, 8)}` });
+      await api.transfer({ fromAccountId: selectedAccountId, toAccountId: transferForm.destinationId, amount: Number(transferForm.amount) });
       setTransferForm({ destinationId: '', amount: '' });
       await refreshAll(); await refreshAccountDetail(selectedAccountId); setActive('transactions');
     } catch (e) { setError(e.message); } finally { setBusy(false); }
@@ -98,7 +98,8 @@ export default function App() {
     try {
       const amount = Number(paymentAmount);
       if (!Number.isFinite(amount) || amount < 1) throw new Error('Enter an amount of at least ₹1');
-      const order = await api.createPaymentOrder(amount);
+      if (!selectedAccountId) throw new Error('Select an account (in Accounts) to credit first');
+      const order = await api.createPaymentOrder(amount, selectedAccountId);
       await loadRazorpay();
       const checkout = new window.Razorpay({
         key: order.keyId, amount: order.amount, currency: order.currency, name: 'Enterprise Platform', description: 'Razorpay Test Mode payment', order_id: order.orderId,
@@ -106,8 +107,9 @@ export default function App() {
         handler: async (response) => {
           setPaymentStatus('Verifying Test Mode payment...');
           try {
-            await api.verifyPayment({ razorpayOrderId: response.razorpay_order_id, razorpayPaymentId: response.razorpay_payment_id, razorpaySignature: response.razorpay_signature });
-            setPaymentStatus(`✓ Verified test payment ${response.razorpay_payment_id}`);
+            const result = await api.verifyPayment({ razorpayOrderId: response.razorpay_order_id, razorpayPaymentId: response.razorpay_payment_id, razorpaySignature: response.razorpay_signature });
+            setPaymentStatus(`✓ Credited ₹${Number(result.credited).toFixed(2)} · payment ${response.razorpay_payment_id}`);
+            await refreshAll(); await refreshAccountDetail(selectedAccountId);
           } catch (e) { setError(e.message); setPaymentStatus(''); }
         },
         modal: { ondismiss: () => setPaymentStatus('Payment window closed') },
@@ -144,7 +146,7 @@ export default function App() {
         {active === 'cards' && <Cards cards={cards} selectedAccount={selectedAccount} onIssue={handleIssueCard} busy={busy} />}
         {active === 'transfers' && <Transfers accounts={accounts} selectedAccountId={selectedAccountId} setSelectedAccountId={setSelectedAccountId} form={transferForm} setForm={setTransferForm} onTransfer={handleTransfer} busy={busy} />}
         {active === 'transactions' && <Transactions transactions={filteredTransactions} search={search} setSearch={setSearch} onAuthorize={handleAuthorize} form={authForm} setForm={setAuthForm} cards={cards} busy={busy} />}
-        {active === 'payments' && <Payments amount={paymentAmount} setAmount={setPaymentAmount} status={paymentStatus} onPay={handleRazorpayPayment} />}
+        {active === 'payments' && <Payments amount={paymentAmount} setAmount={setPaymentAmount} status={paymentStatus} onPay={handleRazorpayPayment} selectedAccount={selectedAccount} />}
       </main>
     </div>
   );
@@ -179,8 +181,8 @@ function Transactions({ transactions, search, setSearch, onAuthorize, form, setF
   return <div className="content-stack"><section className="panel"><div className="panel-head"><div><h3>Transaction monitor</h3><span>Authorization decisions and outcomes</span></div><div className="toolbar"><input placeholder="Filter merchant/status" value={search} onChange={(e) => setSearch(e.target.value)} /></div></div><div className="table-wrap"><table><thead><tr><th>Merchant</th><th>Amount</th><th>Status</th><th>Time</th></tr></thead><tbody>{transactions.length === 0 ? <tr><td colSpan="4"><Empty title="No matching transactions" text="Try a different search." /></td></tr> : transactions.map((t) => <tr key={t.id}><td><strong>{t.merchant || 'Account transaction'}</strong></td><td>{t.currency} {Number(t.amount).toFixed(2)}</td><td><span className={`status ${t.status === 'APPROVED' ? 'active' : 'declined'}`}>{t.status}</span></td><td>{new Date(t.createdAt).toLocaleString()}</td></tr>)}</tbody></table></div></section><section className="panel form-panel"><div className="panel-head"><div><h3>Authorize transaction</h3><span>Run a card or account-level authorization</span></div></div><form onSubmit={onAuthorize} className="form-grid"><label>Card<select value={form.cardId} onChange={(e) => setForm({ ...form, cardId: e.target.value })}><option value="">Account-level</option>{cards.map((c) => <option key={c.id} value={c.id}>•••• {c.last4}</option>)}</select></label><label>Merchant<input value={form.merchant} onChange={(e) => setForm({ ...form, merchant: e.target.value })} placeholder="Merchant name" /></label><label>Amount<input type="number" min="0.01" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} required placeholder="500.00" /></label><div className="form-end"><button className="primary" disabled={busy}>{busy ? 'Authorizing…' : 'Authorize transaction'}</button></div></form></section></div>;
 }
 
-function Payments({ amount, setAmount, status, onPay }) {
-  return <div className="content-stack"><section className="panel payment-panel"><div className="payment-art">₨</div><div><span className="eyebrow">Gateway integration</span><h2>Razorpay Test Mode</h2><p>Sandbox checkout is wired to the Spring Boot backend. No real money is charged.</p></div><div className="payment-form"><label>Amount in INR<input type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} /></label><button className="primary" onClick={onPay}>Open secure checkout ↗</button></div>{status && <div className="success-box">{status}</div>}</section></div>;
+function Payments({ amount, setAmount, status, onPay, selectedAccount }) {
+  return <div className="content-stack"><section className="panel payment-panel"><div className="payment-art">₨</div><div><span className="eyebrow">Gateway integration</span><h2>Razorpay Test Mode</h2><p>Sandbox checkout is wired to the Spring Boot backend. On success, the amount is credited straight to the selected account's balance. No real money is charged.</p></div><div className="payment-form">{selectedAccount ? <div className="credit-target">Crediting <strong>{selectedAccount.holderName}</strong> · {selectedAccount.accountNumber}</div> : <div className="credit-target warn">Select an account first (in Accounts)</div>}<label>Amount in INR<input type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} /></label><button className="primary" onClick={onPay} disabled={!selectedAccount}>Open secure checkout ↗</button></div>{status && <div className="success-box">{status}</div>}</section></div>;
 }
 
 function Empty({ title, text }) { return <div className="empty"><div className="empty-icon">○</div><h4>{title}</h4><p>{text}</p></div>; }

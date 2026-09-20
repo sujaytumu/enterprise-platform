@@ -127,4 +127,53 @@ class TransactionServiceTest {
         assertEquals(Transaction.TransactionStatus.DECLINED, tx.getStatus());
         assertTrue(tx.getDeclineReason().contains("Card"));
     }
+
+    @Test
+    void transferMovesFundsBetweenAccounts() {
+        UUID fromId = UUID.randomUUID();
+        UUID toId = UUID.randomUUID();
+        Account from = activeAccount(new BigDecimal("100.00"));
+        Account to = activeAccount(new BigDecimal("20.00"));
+        when(accountRepository.findByIdForUpdate(fromId)).thenReturn(Optional.of(from));
+        when(accountRepository.findByIdForUpdate(toId)).thenReturn(Optional.of(to));
+
+        Transaction debitTx = service.transfer(fromId, toId, new BigDecimal("30.00"), "Rent");
+
+        assertEquals(Transaction.TransactionStatus.APPROVED, debitTx.getStatus());
+        assertEquals(new BigDecimal("70.00"), from.getBalance());
+        assertEquals(new BigDecimal("50.00"), to.getBalance());
+        verify(transactionRepository, times(2)).save(any(Transaction.class));
+        verify(ledgerEntryRepository, times(2)).save(any(LedgerEntry.class));
+    }
+
+    @Test
+    void transferDeclinesWhenSourceHasInsufficientFunds() {
+        UUID fromId = UUID.randomUUID();
+        UUID toId = UUID.randomUUID();
+        Account from = activeAccount(new BigDecimal("10.00"));
+        Account to = activeAccount(new BigDecimal("20.00"));
+        when(accountRepository.findByIdForUpdate(fromId)).thenReturn(Optional.of(from));
+        when(accountRepository.findByIdForUpdate(toId)).thenReturn(Optional.of(to));
+
+        Transaction tx = service.transfer(fromId, toId, new BigDecimal("30.00"), null);
+
+        assertEquals(Transaction.TransactionStatus.DECLINED, tx.getStatus());
+        assertEquals(new BigDecimal("10.00"), from.getBalance());
+        assertEquals(new BigDecimal("20.00"), to.getBalance());
+        verify(ledgerEntryRepository, never()).save(any(LedgerEntry.class));
+    }
+
+    @Test
+    void creditTopUpIncreasesBalance() {
+        UUID accountId = UUID.randomUUID();
+        Account account = activeAccount(new BigDecimal("50.00"));
+        when(accountRepository.findByIdForUpdate(accountId)).thenReturn(Optional.of(account));
+
+        Transaction tx = service.creditTopUp(accountId, new BigDecimal("25.00"), "pay_test123");
+
+        assertEquals(Transaction.TransactionStatus.APPROVED, tx.getStatus());
+        assertEquals(Transaction.TransactionType.CREDIT, tx.getType());
+        assertEquals(new BigDecimal("75.00"), account.getBalance());
+        verify(ledgerEntryRepository, times(2)).save(any(LedgerEntry.class));
+    }
 }
